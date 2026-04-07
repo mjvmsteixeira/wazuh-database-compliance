@@ -42,11 +42,6 @@ flowchart TD
         OS["OpenSearch\n(ILM retention)"]
     end
 
-    subgraph Integ["Integrations"]
-        HIVE["TheHive / SOAR\n(roadmap)"]
-        SLACK["Slack / JIRA\n(roadmap)"]
-        CERT["CNCS / CERT.PT\n(roadmap)"]
-    end
 
     MY --> AG1
     PG --> AG2
@@ -54,7 +49,6 @@ flowchart TD
     ORA --> AG4
     AG1 & AG2 & AG3 & AG4 --> TLS --> DEC --> RULES --> AR
     RULES --> OS
-    RULES --> HIVE & SLACK & CERT
 ```
 
 ---
@@ -160,9 +154,9 @@ wazuh-db-audit/
 | Regulation | Requirement | Implemented Control |
 |------------|-------------|---------------------|
 | GDPR Art. 32 | Technical security measures | Logging + anomaly alerts |
-| GDPR Art. 33 | Breach notification within 72h | Active Response (TheHive roadmap) |
+| GDPR Art. 33 | Breach notification within 72h | Active Response |
 | NIS2 Art. 21 §2 a) | Risk analysis | Correlation rules + dashboards |
-| NIS2 Art. 23 | Incident notification | Automated alerts → CNCS/CERT.PT |
+| NIS2 Art. 23 | Incident notification | Automated alerts (CNCS/CERT.PT integration roadmap) |
 | PCI-DSS 10.2.1 | Individual access logging | Authentication decoders per DBMS |
 | PCI-DSS 10.2.5 | Privileged action logging | DDL/DCL rules + privilege escalation |
 | PCI-DSS 10.3.4 | Tamper protection | FIM (syscheck) |
@@ -245,7 +239,7 @@ Wazuh uses OS_Regex (POSIX), not PCRE. Key differences:
 |-----------|------|---------|
 | TLS Agent↔Manager | `shared/tls/ossec-auth-tls.conf` | In-transit log encryption (GDPR Art.32, PCI-DSS 10.5) |
 | Active Response | `shared/active-response/active-response.conf` | Automated containment (firewall-drop, whitelisting) |
-| TheHive SOAR | `shared/integrations/custom-thehive.py` | Automatic case creation for DB alerts (optional — requires TheHive installed) |
+| TheHive SOAR | `shared/integrations/custom-thehive.py` | SOAR integration script (NOT DEPLOYED — requires TheHive instance) |
 | ILM OpenSearch | `shared/opensearch/ilm-retention-policy.json` | 12-month retention (PCI-DSS 10.7) |
 | Health Check | `shared/scripts/check-db-pipeline.sh` | Pipeline health monitoring |
 | Agent Config | `shared/agent-conf/db_{mariadb,postgresql,mssql}.conf` | Centralized per-group configuration |

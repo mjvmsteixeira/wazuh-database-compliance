@@ -27,7 +27,6 @@ flowchart LR
     end
 
     Manager --> OS["OpenSearch\nDashboard"]
-    Manager --> HIVE["TheHive\n(alertas críticos)"]
 ```
 
 ---
