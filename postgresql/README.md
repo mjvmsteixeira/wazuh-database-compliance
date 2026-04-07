@@ -1,6 +1,8 @@
 # Módulo PostgreSQL
 
-Implementação de auditoria de conformidade para PostgreSQL 15/16 utilizando a extensão **pgAudit** com output via syslog, integrada com o Wazuh.
+Implementação de auditoria de conformidade para PostgreSQL 15/16 utilizando a extensão **pgAudit** com output via stderr (ficheiro de log) ou syslog, integrada com o Wazuh.
+
+> **Nota**: Este guia documenta ambos os métodos (stderr e syslog). O ambiente de produção validado (sig-postgres) usa **stderr** com ficheiros em `pg_log/`. O método syslog é uma alternativa para ambientes que já usam rsyslog centralizado.
 
 ---
 
@@ -9,9 +11,9 @@ Implementação de auditoria de conformidade para PostgreSQL 15/16 utilizando a 
 ```mermaid
 flowchart LR
     subgraph Host["Servidor PostgreSQL"]
-        PG["postgres"] -->|"pgAudit extension\n(LOCAL0.LOG)"| SYS["rsyslog\n/var/log/postgresql/audit.log"]
-        PG -->|"log_connections\nlog_disconnections"| SYS
-        SYS -->|"Logcoletor"| AG["Wazuh Agent"]
+        PG["postgres"] -->|"pgAudit extension"| LOG["pg_log/*.log\n(stderr)"]
+        PG -->|"log_connections\nlog_disconnections"| LOG
+        LOG -->|"Logcoletor"| AG["Wazuh Agent"]
     end
 
     AG -->|"TLS 1.2+"| MAN["Wazuh Manager"]
@@ -50,7 +52,7 @@ flowchart LR
 |------------|--------------|-------|
 | PostgreSQL | 15+ | |
 | pgAudit | 1.7.x (PG15), 16.x (PG16) | Versão tem de coincidir com PG |
-| rsyslog | 8+ | Para routing de logs via syslog |
+| rsyslog | 8+ | Opcional — apenas se usar log_destination=syslog |
 | Wazuh Agent | 4.9.x | No host PostgreSQL |
 
 ---
@@ -112,16 +114,19 @@ Editar `postgresql.conf`:
 
 ```ini
 # ─── Carregamento do pgAudit ─────────────────────────────────
-# pg_stat_statements: opcional mas útil para deteção de anomalias
-# (queries com tempo de execução anómalo → possível exfiltração)
 shared_preload_libraries = 'pgaudit, pg_stat_statements'
 
 # ─── Output de logs ──────────────────────────────────────────
-# Enviar logs para syslog (recomendado para Wazuh)
-# Alternativa: 'stderr' ou 'csvlog' — syslog é mais robusto
-log_destination = 'syslog'
-syslog_facility = 'LOCAL0'
-syslog_ident = 'postgresql'
+# Opção A: stderr (ficheiro directo — validado em produção)
+log_destination = 'stderr'
+logging_collector = on
+log_directory = 'pg_log'
+log_filename = 'postgresql-%Y-%m-%d_%H%M%S.log'
+
+# Opção B: syslog (para ambientes com rsyslog centralizado)
+# log_destination = 'syslog'
+# syslog_facility = 'LOCAL0'
+# syslog_ident = 'postgresql'
 
 # Eventos de conexão via PostgreSQL nativo
 # Nota: pgAudit não tem classe específica para connect/disconnect
