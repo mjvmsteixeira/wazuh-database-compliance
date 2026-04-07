@@ -1,0 +1,183 @@
+<!--
+  ============================================================
+  Wazuh Rules — MySQL / MariaDB Audit
+  Ficheiro: /var/ossec/etc/rules/mysql-audit-rules.xml
+  ============================================================
+
+  IDs reservados: 100200–100299 (MySQL/MariaDB)
+
+  Níveis de alerta:
+    3  = informativo (sessões normais)
+    8  = aviso (DDL, alterações de schema)
+    10 = crítico (falha de autenticação, acesso fora de horário)
+    12 = crítico alto (brute-force, privilege escalation)
+    13 = crítico máximo (exfiltração suspeita)
+
+  Grupos de conformidade usados nas regras:
+    database              = evento de base de dados genérico
+    authentication        = evento de autenticação
+    authentication_failed = falha de autenticação
+    ddl                   = operação DDL (schema change)
+    privilege_escalation  = alteração de privilégios
+    data_exfiltration     = suspeita de exfiltração
+    pci_dss_10.2.1        = PCI-DSS Req 10.2.1 (log acessos individuais)
+    pci_dss_10.2.4        = PCI-DSS Req 10.2.4 (tentativas de acesso inválido)
+    pci_dss_10.2.5        = PCI-DSS Req 10.2.5 (uso de mecanismos privilegiados)
+    rgpd_art32            = RGPD Art. 32.º (medidas técnicas)
+    rgpd_art33            = RGPD Art. 33.º (notificação violação)
+    nis2_art21            = NIS2 Art. 21.º (gestão de riscos)
+    iso27001_A.8.15       = ISO 27001:2022 A.8.15 (logging)
+  ============================================================
+-->
+
+<group name="database,mysql,">
+
+  <!-- ─── Sessões (Connect / Quit) ─────────────────────────── -->
+
+  <!--
+    Regra 100201: Registo de sessão MySQL.
+    Nível 3 = informativo. Cobre PCI-DSS 10.2.1 (log de acessos).
+    Disparado por: Connect ou Quit com status 0 (sucesso).
+  -->
+  <rule id="100201" level="3">
+    <decoded_as>mysql-audit-json</decoded_as>
+    <field name="audit_record.name">Connect|Quit</field>
+    <field name="audit_record.status">0</field>
+    <description>MySQL: Sessão $(audit_record.name) - $(audit_record.user)@$(audit_record.host)</description>
+    <group>authentication,pci_dss_10.2.1,rgpd_art32,iso27001_A.8.15,</group>
+  </rule>
+
+  <!-- ─── Falha de Autenticação ─────────────────────────────── -->
+
+  <!--
+    Regra 100202: Falha de autenticação MySQL.
+    Nível 10 = crítico. status > 0 indica erro (ex: código 1045 = acesso negado).
+    Cobre PCI-DSS 10.2.4 (tentativas de acesso inválido).
+    Nota: status usa regex \.\+ para qualquer valor não-zero.
+  -->
+  <rule id="100202" level="10">
+    <decoded_as>mysql-audit-json</decoded_as>
+    <field name="audit_record.name">Connect</field>
+    <field name="audit_record.status">\.+</field>
+    <description>MySQL: Falha de autenticação - $(audit_record.user) de $(audit_record.host) [código $(audit_record.status)]</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!--
+    Regra 100203: Deteção de brute-force — múltiplas falhas de autenticação.
+    Nível 12. Dispara se a regra 100202 ocorrer 5+ vezes em 2 minutos
+    do mesmo IP (if_matched_sid + frequency + timeframe).
+    Ativa Active Response (firewall-drop) configurado no ossec.conf.
+  -->
+  <rule id="100203" level="12" frequency="5" timeframe="120">
+    <if_matched_sid>100202</if_matched_sid>
+    <description>MySQL: Brute-force detetado - $(audit_record.user)@$(audit_record.host) ($(audit_record.ip))</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art33,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── DDL — Alterações de Schema ───────────────────────── -->
+
+  <!--
+    Regra 100204: Operação DDL executada.
+    Nível 8. Regista CREATE/ALTER/DROP/TRUNCATE em tabelas e bases de dados.
+    Cobre PCI-DSS 10.2.5 e ISO A.8.15.
+  -->
+  <rule id="100204" level="8">
+    <decoded_as>mysql-audit-json</decoded_as>
+    <field name="audit_record.command_class">create_table|alter_table|drop_table|truncate|create_db|alter_db|drop_db|create_index|drop_index</field>
+    <description>MySQL: DDL executado - $(audit_record.command_class) por $(audit_record.user) na BD $(audit_record.db)</description>
+    <group>ddl,pci_dss_10.2.5,iso27001_A.8.15,rgpd_art32,</group>
+  </rule>
+
+  <!-- ─── Gestão de Privilégios ─────────────────────────────── -->
+
+  <!--
+    Regra 100205: Alteração de privilégios ou utilizadores MySQL.
+    Nível 12. GRANT/REVOKE/CREATE USER/DROP USER são operações privilegiadas
+    críticas para conformidade PCI-DSS 7.1 e SOX 404.
+  -->
+  <rule id="100205" level="12">
+    <decoded_as>mysql-audit-json</decoded_as>
+    <field name="audit_record.command_class">grant|revoke|create_user|drop_user|alter_user|rename_user|set_password</field>
+    <description>MySQL: Alteração de privilégios/utilizador - $(audit_record.command_class) por $(audit_record.user)</description>
+    <group>privilege_escalation,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Acesso Fora de Horário ─────────────────────────────── -->
+
+  <!--
+    Regra 100206: Acesso ao MySQL fora do horário de trabalho (22h–06h).
+    Nível 10. Baseia-se no campo time_after e time_before do Wazuh.
+    Ajustar o horário conforme política da organização.
+    Cobre NIS2 Art. 21.º e ISO A.8.15.
+  -->
+  <rule id="100206" level="10">
+    <if_sid>100201</if_sid>
+    <time>10pm - 6am</time>
+    <description>MySQL: Acesso fora de horário - $(audit_record.user)@$(audit_record.host)</description>
+    <group>authentication,pci_dss_10.2.1,nis2_art21,iso27001_A.8.15,</group>
+  </rule>
+
+  <!-- ─── Suspeita de Exfiltração ──────────────────────────── -->
+
+  <!--
+    Regra 100207: Query potencialmente exfiltradora.
+    Nível 10. Deteta SELECT ... INTO OUTFILE ou SELECT ... INTO DUMPFILE,
+    padrões comuns de exfiltração de dados via MySQL.
+  -->
+  <rule id="100207" level="10">
+    <decoded_as>mysql-audit-json</decoded_as>
+    <field name="audit_record.sqltext">INTO OUTFILE|INTO DUMPFILE</field>
+    <description>MySQL: Query suspeita de exfiltração - $(audit_record.user) na BD $(audit_record.db)</description>
+    <group>data_exfiltration,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!--
+    Regra 100208: Múltiplas queries de exfiltração suspeita.
+    Nível 13. Se 100207 ocorrer 3+ vezes em 5 minutos, escalar.
+  -->
+  <rule id="100208" level="13" frequency="3" timeframe="300">
+    <if_matched_sid>100207</if_matched_sid>
+    <description>MySQL: Padrão de exfiltração repetido - $(audit_record.user) na BD $(audit_record.db)</description>
+    <group>data_exfiltration,pci_dss_10.2.5,rgpd_art33,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── MariaDB server_audit ──────────────────────────────── -->
+
+  <!--
+    Regra 100220: Sessão MariaDB (CONNECT).
+    Equivalente à 100201 mas para o formato server_audit do MariaDB.
+  -->
+  <!-- Valores reais do MariaDB server_audit para operation:
+       CONNECT, DISCONNECT, FAILED_CONNECT, QUERY, QUERY_DDL,
+       READ, WRITE, CREATE, ALTER, DROP, RENAME -->
+
+  <rule id="100260" level="3">
+    <decoded_as>mariadb-server-audit</decoded_as>
+    <field name="operation">CONNECT</field>
+    <description>MariaDB: Sessão CONNECT - $(db_user)@$(client_host)</description>
+    <group>authentication,pci_dss_10.2.1,rgpd_art32,iso27001_A.8.15,</group>
+  </rule>
+
+  <rule id="100261" level="10">
+    <decoded_as>mariadb-server-audit</decoded_as>
+    <field name="operation">FAILED_CONNECT</field>
+    <description>MariaDB: Falha de autenticação - $(db_user)@$(client_host)</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <rule id="100262" level="8">
+    <decoded_as>mariadb-server-audit</decoded_as>
+    <field name="operation">QUERY_DDL|CREATE|ALTER|DROP|RENAME</field>
+    <description>MariaDB: DDL executado por $(db_user)@$(client_host)</description>
+    <group>ddl,pci_dss_10.2.5,iso27001_A.8.15,rgpd_art32,</group>
+  </rule>
+
+  <rule id="100263" level="3">
+    <decoded_as>mariadb-server-audit</decoded_as>
+    <field name="operation">DISCONNECT</field>
+    <description>MariaDB: Sessão DISCONNECT - $(db_user)@$(client_host)</description>
+    <group>authentication,pci_dss_10.2.1,rgpd_art32,</group>
+  </rule>
+
+</group>

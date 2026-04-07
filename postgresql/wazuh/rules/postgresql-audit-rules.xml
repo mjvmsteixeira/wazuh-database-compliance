@@ -1,0 +1,102 @@
+<!--
+  ============================================================
+  Wazuh Rules — PostgreSQL Audit
+  Ficheiro: /var/ossec/etc/rules/postgresql-audit-rules.xml
+
+  IDs reservados: 100210–100229 (PostgreSQL)
+
+  Campos disponíveis nos decoders:
+    postgresql-audit:        audit_type, statement_id, sub_id, class
+    postgresql-connection:   db_user, db_name
+    postgresql-auth-failure: db_user
+    postgresql-pghba-failure: db_user, db_name
+    postgresql-disconnection: db_user, db_name, client_host
+    postgresql-sql-error:    error_message
+  ============================================================
+-->
+
+<group name="database,postgresql,">
+
+  <!-- ─── Conexão autorizada ─────────────────────────────── -->
+  <rule id="100210" level="3">
+    <decoded_as>postgresql-connection</decoded_as>
+    <description>PostgreSQL: Conexão autorizada - $(db_user)@$(db_name)</description>
+    <group>authentication,pci_dss_10.2.1,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Falha de autenticação ──────────────────────────── -->
+  <rule id="100211" level="10">
+    <decoded_as>postgresql-auth-failure</decoded_as>
+    <description>PostgreSQL: Falha de autenticação - utilizador $(db_user)</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- Falha pg_hba.conf -->
+  <rule id="100212" level="10">
+    <decoded_as>postgresql-pghba-failure</decoded_as>
+    <description>PostgreSQL: Acesso rejeitado por pg_hba.conf - $(db_user)@$(db_name)</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- Brute-force: 5 falhas em 2 minutos -->
+  <rule id="100213" level="12" frequency="5" timeframe="120">
+    <if_matched_sid>100211</if_matched_sid>
+    <description>PostgreSQL: Brute-force detetado - $(db_user)</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art33,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── DDL — pgAudit class=DDL ────────────────────────── -->
+  <rule id="100214" level="8">
+    <decoded_as>postgresql-audit</decoded_as>
+    <field name="class">DDL</field>
+    <description>PostgreSQL: Operação DDL detetada (class=$(class))</description>
+    <group>ddl,pci_dss_10.2.5,iso27001_A.8.15,rgpd_art32,</group>
+  </rule>
+
+  <!-- ─── Gestão de Roles — pgAudit class=ROLE ──────────── -->
+  <rule id="100215" level="12">
+    <decoded_as>postgresql-audit</decoded_as>
+    <field name="class">ROLE</field>
+    <description>PostgreSQL: Alteração de role/privilégio detetada (class=$(class))</description>
+    <group>privilege_escalation,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Leitura de dados — pgAudit class=READ ─────────── -->
+  <rule id="100216" level="3">
+    <decoded_as>postgresql-audit</decoded_as>
+    <field name="class">READ</field>
+    <description>PostgreSQL: Acesso de leitura detetado (class=$(class))</description>
+    <group>database,pci_dss_10.2.1,rgpd_art32,</group>
+  </rule>
+
+  <!-- ─── Escrita de dados — pgAudit class=WRITE ─────────── -->
+  <rule id="100217" level="8">
+    <decoded_as>postgresql-audit</decoded_as>
+    <field name="class">WRITE</field>
+    <description>PostgreSQL: Modificação de dados detetada (class=$(class))</description>
+    <group>database,pci_dss_10.2.5,rgpd_art32,</group>
+  </rule>
+
+  <!-- ─── Erros de Permissão ─────────────────────────────── -->
+  <rule id="100218" level="8">
+    <decoded_as>postgresql-sql-error</decoded_as>
+    <description>PostgreSQL: Permissão negada - $(error_message)</description>
+    <group>authentication_failed,pci_dss_10.2.4,rgpd_art32,</group>
+  </rule>
+
+  <!-- Múltiplos erros de permissão -->
+  <rule id="100219" level="10" frequency="10" timeframe="300">
+    <if_matched_sid>100218</if_matched_sid>
+    <description>PostgreSQL: Múltiplos acessos negados - possível enumeração</description>
+    <group>authentication_failed,pci_dss_10.2.4,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Acesso Fora de Horário ──────────────────────────── -->
+  <rule id="100220" level="10">
+    <if_sid>100210</if_sid>
+    <time>10pm - 6am</time>
+    <description>PostgreSQL: Conexão fora de horário - $(db_user)@$(db_name)</description>
+    <group>authentication,pci_dss_10.2.1,nis2_art21,iso27001_A.8.15,</group>
+  </rule>
+
+</group>

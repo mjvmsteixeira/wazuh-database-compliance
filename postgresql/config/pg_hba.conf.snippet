@@ -1,0 +1,40 @@
+# ============================================================
+# pg_hba.conf snippet — Controlo de acesso para conformidade
+# Adicionar a /etc/postgresql/16/main/pg_hba.conf
+#
+# Após editar: psql -U postgres -c "SELECT pg_reload_conf();"
+# ============================================================
+
+# ─── Princípio: rejeitar por defeito, permitir explicitamente ─
+
+# Formato de cada linha:
+# TYPE  DATABASE  USER         ADDRESS        METHOD
+
+# Acesso local (socket Unix) — apenas para o utilizador postgres
+local   all       postgres                    peer
+
+# Acesso local para utilizadores de aplicação via socket
+local   prod_db   app_user                    scram-sha-256
+local   prod_db   readonly_user               scram-sha-256
+
+# Acesso de rede — APENAS de subnets autorizadas
+# [AJUSTAR] — substituir pelas subnets reais da infra
+host    prod_db   app_user    192.168.1.0/24  scram-sha-256
+host    prod_db   app_user    10.0.1.0/24     scram-sha-256
+
+# Acesso DBA — apenas do servidor de gestão
+# [AJUSTAR]
+host    all       dba_user    10.0.0.10/32    scram-sha-256
+
+# Wazuh Agent — não precisa de acesso direto ao PostgreSQL
+# O agente lê os ficheiros de log, não conecta à BD
+
+# ─── Bloquear explicitamente ──────────────────────────────────
+# Rejeitar qualquer outro acesso de fora da rede autorizada
+host    all       all         0.0.0.0/0       reject
+host    all       all         ::/0            reject
+
+# ─── Notas de conformidade ───────────────────────────────────
+# PCI-DSS 8.2.1: método scram-sha-256 é obrigatório (md5 não é aceite)
+# PCI-DSS 8.6.1: contas de serviço (app_user) com acesso mínimo necessário
+# NIS2 Art.21: acesso de rede apenas de endereços IP conhecidos e controlados

@@ -1,0 +1,54 @@
+# ============================================================
+# pgAudit + Wazuh DAM — postgresql.conf snippet
+# Adicionar a /etc/postgresql/16/main/postgresql.conf
+#
+# Após editar:
+#   systemctl restart postgresql@16-main   (para shared_preload_libraries)
+#   psql -U postgres -c "SELECT pg_reload_conf();"  (para outros params)
+# ============================================================
+
+# ─── Carregamento de extensões ───────────────────────────────
+# ATENÇÃO: requer restart do PostgreSQL (não apenas reload)
+# pg_stat_statements: permite detetar queries com tempo anómalo via Prometheus
+shared_preload_libraries = 'pgaudit, pg_stat_statements'
+
+# ─── Destino dos logs ────────────────────────────────────────
+# syslog: recomendado para Wazuh (facilita centralização)
+# Alternativa stderr: mais simples mas requer csvlog para parsing
+log_destination = 'syslog'
+syslog_facility = 'LOCAL0'           # facility dedicada ao PostgreSQL
+syslog_ident = 'postgresql'          # tag usada como prematch no decoder
+
+# ─── Logs de conectividade ───────────────────────────────────
+# Obrigatório para PCI-DSS 10.2.1 (log de acessos individuais)
+log_connections = on
+log_disconnections = on
+log_hostname = on                    # resolver IP → hostname no log
+
+# Incluir nome de utilizador e base de dados em cada linha de log
+log_line_prefix = '%m [%p] %q%u@%d '
+
+# ─── pgAudit — configuração global ──────────────────────────
+# Classes a auditar (ajustar conforme requisitos)
+# Mínimo recomendado para PCI-DSS: ddl, role
+# Para RGPD com dados PII: adicionar read, write
+pgaudit.log = 'ddl, role, misc'
+
+# Excluir queries ao catálogo interno do PostgreSQL
+# Essencial para reduzir volume de logs em produção
+pgaudit.log_catalog = off
+
+# Incluir parâmetros de bind em queries preparadas (útil para PII)
+pgaudit.log_parameter = on
+
+# Uma linha por statement (evitar linhas duplicadas em substatements)
+pgaudit.log_statement_once = on
+
+# Nível de severidade do log pgAudit (log = LOG no syslog)
+pgaudit.log_level = log
+
+# ─── pg_stat_statements (deteção de anomalias) ───────────────
+# Guardar estatísticas das últimas N queries distintas
+pg_stat_statements.max = 10000
+# Track all = incluir queries de utilizadores, superusers e funções
+pg_stat_statements.track = all

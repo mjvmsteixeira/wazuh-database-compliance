@@ -1,0 +1,255 @@
+{
+  "_comment": [
+    "Dashboard Specifications — Database Compliance Monitoring",
+    "Wazuh 4.14.4 | Database Activity Monitoring",
+    "",
+    "Especificações dos 8 painéis de conformidade para OpenSearch Dashboards.",
+    "Este ficheiro contém as specs de design — não é NDJSON importável directamente.",
+    "Usar como referência para criação manual ou geração automática dos dashboards.",
+    "",
+    "Referências regulatórias:",
+    "  PCI-DSS 10.6: Revisão de logs e eventos de segurança",
+    "  RGPD Art. 32: Segurança do tratamento",
+    "  NIS2 Art. 21: Medidas de gestão de risco de cibersegurança"
+  ],
+  "dashboards": [
+    {
+      "id": "db-audit-failed-logins",
+      "title": "Logins Falhados por SGBD",
+      "description": "Distribuição de tentativas de autenticação falhadas por tipo de base de dados",
+      "visualization_type": "bar_chart",
+      "index_pattern": "wazuh-alerts-4.x-*",
+      "filters": {
+        "rule.groups": "authentication_failed"
+      },
+      "x_axis": {
+        "field": "agent.labels.database_type",
+        "label": "SGBD"
+      },
+      "y_axis": {
+        "aggregation": "count",
+        "label": "Logins Falhados"
+      },
+      "split_series": {
+        "field": "rule.id",
+        "label": "Rule ID"
+      },
+      "time_range": "last_24h",
+      "refresh_interval": "5m",
+      "compliance": ["PCI-DSS 10.2.4", "RGPD Art. 32"]
+    },
+    {
+      "id": "db-audit-top-users",
+      "title": "Top 10 Utilizadores com Actividade",
+      "description": "Utilizadores de BD com maior volume de eventos auditados",
+      "visualization_type": "pie_chart",
+      "index_pattern": "wazuh-alerts-4.x-*",
+      "filters": {
+        "rule.groups": "database"
+      },
+      "metric": {
+        "aggregation": "count"
+      },
+      "bucket": {
+        "field": "data.srcuser",
+        "size": 10,
+        "order": "desc"
+      },
+      "time_range": "last_24h",
+      "refresh_interval": "5m",
+      "compliance": ["PCI-DSS 10.2.2", "RGPD Art. 30"]
+    },
+    {
+      "id": "db-audit-ddl-timeline",
+      "title": "DDL Operations Timeline",
+      "description": "Cronologia de operações DDL (CREATE, ALTER, DROP) em todas as BDs",
+      "visualization_type": "line_chart",
+      "index_pattern": "wazuh-alerts-4.x-*",
+      "filters": {
+        "rule.groups": "ddl"
+      },
+      "x_axis": {
+        "field": "timestamp",
+        "interval": "1h",
+        "label": "Hora"
+      },
+      "y_axis": {
+        "aggregation": "count",
+        "label": "Operações DDL"
+      },
+      "split_series": {
+        "field": "agent.labels.database_type",
+        "label": "SGBD"
+      },
+      "time_range": "last_7d",
+      "refresh_interval": "15m",
+      "compliance": ["PCI-DSS 10.2.7", "RGPD Art. 32"]
+    },
+    {
+      "id": "db-audit-off-hours",
+      "title": "Acessos Fora de Horário",
+      "description": "Mapa de calor de acessos a bases de dados fora do horário laboral (19h-8h, fins-de-semana)",
+      "visualization_type": "heat_map",
+      "index_pattern": "wazuh-alerts-4.x-*",
+      "filters": {
+        "rule.id": ["100206", "100220", "100251", "100283"]
+      },
+      "x_axis": {
+        "field": "timestamp",
+        "interval": "1h",
+        "label": "Hora do Dia"
+      },
+      "y_axis": {
+        "field": "timestamp",
+        "interval": "day_of_week",
+        "label": "Dia da Semana"
+      },
+      "metric": {
+        "aggregation": "count",
+        "color_schema": "Reds"
+      },
+      "time_range": "last_30d",
+      "refresh_interval": "30m",
+      "compliance": ["PCI-DSS 10.2.6", "RGPD Art. 32", "NIS2 Art. 21"]
+    },
+    {
+      "id": "db-audit-pci-status",
+      "title": "Estado PCI-DSS",
+      "description": "Cartões de estado para cada requisito PCI-DSS 10.x coberto",
+      "visualization_type": "status_cards",
+      "index_pattern": "wazuh-alerts-4.x-*",
+      "filters": {
+        "rule.groups": "pci_dss_10.*"
+      },
+      "cards": [
+        {"label": "PCI 10.1 — Trilho de auditoria", "filter": "rule.groups:pci_dss_10.1"},
+        {"label": "PCI 10.2 — Eventos auditáveis", "filter": "rule.groups:pci_dss_10.2"},
+        {"label": "PCI 10.2.4 — Acessos inválidos", "filter": "rule.groups:pci_dss_10.2.4"},
+        {"label": "PCI 10.2.7 — Criação/eliminação objectos", "filter": "rule.groups:pci_dss_10.2.7"},
+        {"label": "PCI 10.5 — Protecção de logs", "filter": "rule.groups:pci_dss_10.5"},
+        {"label": "PCI 10.6 — Revisão de logs", "filter": "rule.groups:pci_dss_10.6"},
+        {"label": "PCI 10.7 — Retenção", "filter": "rule.groups:pci_dss_10.7"}
+      ],
+      "thresholds": {
+        "green": ">0 events in last 24h",
+        "yellow": "0 events in last 24h",
+        "red": "0 events in last 7d"
+      },
+      "time_range": "last_24h",
+      "refresh_interval": "15m",
+      "compliance": ["PCI-DSS 10.*"]
+    },
+    {
+      "id": "db-audit-privilege-escalation",
+      "title": "Escaladas de Privilégio",
+      "description": "Tabela detalhada com drill-down de eventos de escalada de privilégios em BDs",
+      "visualization_type": "table",
+      "features": ["drill_down"],
+      "index_pattern": "wazuh-alerts-4.x-*",
+      "filters": {
+        "rule.groups": "privilege_escalation"
+      },
+      "columns": [
+        {"field": "timestamp", "label": "Data/Hora"},
+        {"field": "agent.name", "label": "Agente"},
+        {"field": "agent.labels.database_type", "label": "SGBD"},
+        {"field": "data.srcuser", "label": "Utilizador"},
+        {"field": "rule.description", "label": "Descrição"},
+        {"field": "rule.level", "label": "Nível"},
+        {"field": "rule.id", "label": "Rule ID"}
+      ],
+      "sort": {
+        "field": "timestamp",
+        "order": "desc"
+      },
+      "drill_down": {
+        "target": "discover",
+        "filter_field": "rule.id"
+      },
+      "time_range": "last_7d",
+      "refresh_interval": "5m",
+      "compliance": ["PCI-DSS 10.2.2", "RGPD Art. 32", "NIS2 Art. 21"]
+    },
+    {
+      "id": "db-audit-pipeline-health",
+      "title": "Pipeline Health",
+      "description": "Indicadores de estado do pipeline de recolha de eventos por grupo de BD",
+      "visualization_type": "status_indicators",
+      "index_pattern": "wazuh-alerts-4.x-*",
+      "indicators": [
+        {
+          "label": "MariaDB Pipeline",
+          "filter": "rule.groups:db_mariadb",
+          "healthy": "events > 0 in last 30m",
+          "warning": "events == 0 in last 30m",
+          "critical": "events == 0 in last 2h"
+        },
+        {
+          "label": "PostgreSQL Pipeline",
+          "filter": "rule.groups:db_postgresql",
+          "healthy": "events > 0 in last 30m",
+          "warning": "events == 0 in last 30m",
+          "critical": "events == 0 in last 2h"
+        },
+        {
+          "label": "MSSQL Pipeline",
+          "filter": "rule.groups:db_mssql",
+          "healthy": "events > 0 in last 30m",
+          "warning": "events == 0 in last 30m",
+          "critical": "events == 0 in last 2h"
+        }
+      ],
+      "no_data_activity": {
+        "status": "critical",
+        "message": "Sem dados — verificar agentes e conectividade"
+      },
+      "time_range": "last_2h",
+      "refresh_interval": "5m",
+      "compliance": ["PCI-DSS 10.6.1"]
+    },
+    {
+      "id": "db-audit-rgpd-compliance",
+      "title": "Conformidade RGPD",
+      "description": "Scorecard de conformidade RGPD Art. 32 para monitorização de bases de dados",
+      "visualization_type": "compliance_scorecard",
+      "index_pattern": "wazuh-alerts-4.x-*",
+      "filters": {
+        "rule.groups": "rgpd_art32"
+      },
+      "scores": [
+        {
+          "label": "Art. 32(1)(a) — Pseudonimização e cifragem",
+          "metric": "count",
+          "filter": "rule.groups:rgpd_art32_1a",
+          "target": ">0 events/day"
+        },
+        {
+          "label": "Art. 32(1)(b) — Confidencialidade e integridade",
+          "metric": "count",
+          "filter": "rule.groups:rgpd_art32_1b",
+          "target": ">0 events/day"
+        },
+        {
+          "label": "Art. 32(1)(c) — Disponibilidade e resiliência",
+          "metric": "count",
+          "filter": "rule.groups:rgpd_art32_1c",
+          "target": ">0 events/day"
+        },
+        {
+          "label": "Art. 32(1)(d) — Testar e avaliar eficácia",
+          "metric": "count",
+          "filter": "rule.groups:rgpd_art32_1d",
+          "target": ">0 events/week"
+        }
+      ],
+      "overall_status": {
+        "compliant": "all scores meet target",
+        "partial": ">=50% scores meet target",
+        "non_compliant": "<50% scores meet target"
+      },
+      "time_range": "last_30d",
+      "refresh_interval": "1h",
+      "compliance": ["RGPD Art. 32", "RGPD Art. 5(2)"]
+    }
+  ]
+}

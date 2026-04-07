@@ -1,0 +1,74 @@
+<!--
+  ============================================================
+  Wazuh Decoders — PostgreSQL Audit (pgAudit + nativo)
+  Ficheiro: /var/ossec/etc/decoders/postgresql-audit-decoders.xml
+  ============================================================
+  Formato de input (stderr do PostgreSQL 15 com pgAudit):
+
+  pgAudit:
+    2026-04-07 13:33:13.945 UTC [261807] postgres@geodb LOG:  AUDIT: SESSION,1,1,DDL,DROP TABLE,TABLE,public.test,DROP TABLE test;,<none>
+
+  Conexão:
+    2026-04-07 13:33:13.943 UTC [261807] postgres@geodb LOG:  connection authorized: user=postgres database=geodb
+
+  Auth failure:
+    2026-04-07 13:35:00.000 UTC [262001] FATAL:  password authentication failed for user "baduser"
+
+  Nota: os logs são lidos directamente do ficheiro (não via syslog),
+  por isso program_name não funciona — usar prematch directo.
+  ============================================================
+-->
+
+<!-- ─── pgAudit SESSION ──────────────────────────────────── -->
+<!--
+  Formato completo:
+    AUDIT: SESSION,stmt_id,sub_id,class,command,obj_type,obj_name,sql,param
+
+  O campo command pode conter espaços (ex: "DROP TABLE", "CREATE INDEX").
+  Capturamos class (campo 4) que é sempre uma palavra sem espaços
+  (DDL, ROLE, READ, WRITE, MISC) e é o campo usado nas regras.
+
+  Campos extraídos: audit_type, statement_id, sub_id, class
+  Campos não extraídos (limitação regex espaços): command, object_type, object_name, sql
+  As regras usam apenas class para filtrar, o que é suficiente para conformidade.
+-->
+<decoder name="postgresql-audit">
+  <prematch>LOG:  AUDIT: </prematch>
+  <regex offset="after_prematch">(\S+),(\S+),(\S+),(\S+),</regex>
+  <order>audit_type,statement_id,sub_id,class</order>
+</decoder>
+
+<!-- ─── Conexão autorizada ───────────────────────────────── -->
+<decoder name="postgresql-connection">
+  <prematch>LOG:  connection authorized: </prematch>
+  <regex offset="after_prematch">user=(\S+) database=(\S+)</regex>
+  <order>db_user,db_name</order>
+</decoder>
+
+<!-- ─── Falha de autenticação (password) ─────────────────── -->
+<decoder name="postgresql-auth-failure">
+  <prematch>FATAL:  password authentication failed for user </prematch>
+  <regex offset="after_prematch">(\S+)</regex>
+  <order>db_user</order>
+</decoder>
+
+<!-- ─── Falha pg_hba.conf ────────────────────────────────── -->
+<decoder name="postgresql-pghba-failure">
+  <prematch>FATAL:  no pg_hba.conf entry</prematch>
+  <regex>user "(\S+)", database "(\S+)"</regex>
+  <order>db_user,db_name</order>
+</decoder>
+
+<!-- ─── Desconexão ───────────────────────────────────────── -->
+<decoder name="postgresql-disconnection">
+  <prematch>LOG:  disconnection: </prematch>
+  <regex>user=(\S+) database=(\S+) host=(\S+)</regex>
+  <order>db_user,db_name,client_host</order>
+</decoder>
+
+<!-- ─── Erro de permissão ────────────────────────────────── -->
+<decoder name="postgresql-sql-error">
+  <prematch>ERROR:  permission denied</prematch>
+  <regex>permission denied for (\S+)</regex>
+  <order>error_message</order>
+</decoder>

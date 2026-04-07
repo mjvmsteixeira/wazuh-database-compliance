@@ -1,0 +1,151 @@
+<!--
+  ============================================================
+  Wazuh Rules — Oracle Unified Audit + FGA
+  Ficheiro: /var/ossec/etc/rules/oracle-audit-rules.xml
+
+  IDs reservados: 100230–100269 (Oracle)
+  ============================================================
+-->
+
+<group name="database,oracle,">
+
+  <!-- ─── Sessões — LOGON / LOGOFF ───────────────────────── -->
+
+  <!--
+    Regra 100230: Sessão Oracle bem-sucedida (LOGON com return_code=0).
+    Nível 3. Cobre PCI-DSS 10.2.1.
+  -->
+  <rule id="100230" level="3">
+    <decoded_as>oracle-unified-audit</decoded_as>
+    <field name="audit_action">LOGON</field>
+    <field name="return_code">0</field>
+    <description>Oracle: Sessão iniciada - $(user)@$(host) [$(auth_type)]</description>
+    <group>authentication,pci_dss_10.2.1,rgpd_art32,iso27001_A.8.15,</group>
+  </rule>
+
+  <!-- ─── Falha de Autenticação ──────────────────────────── -->
+
+  <!--
+    Regra 100231: Falha de autenticação Oracle.
+    Nível 10. return_code != 0 em LOGON.
+    Códigos comuns: 1017 (invalid username/password), 28000 (account locked).
+    Cobre PCI-DSS 10.2.4.
+  -->
+  <rule id="100231" level="10">
+    <decoded_as>oracle-unified-audit</decoded_as>
+    <field name="audit_action">LOGON</field>
+    <field name="return_code">\.+</field>
+    <description>Oracle: Falha de autenticação - $(user)@$(host) [ORA-$(return_code)]</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!--
+    Regra 100232: Brute-force Oracle.
+    Nível 12. 5 falhas em 2 minutos.
+  -->
+  <rule id="100232" level="12" frequency="5" timeframe="120">
+    <if_matched_sid>100231</if_matched_sid>
+    <description>Oracle: Brute-force detetado - $(user)@$(host)</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art33,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── DDL — Alterações de Schema ─────────────────────── -->
+
+  <!--
+    Regra 100233: DDL Oracle (CREATE/ALTER/DROP/TRUNCATE).
+    Nível 8. Cobre PCI-DSS 10.2.5, ISO A.8.15.
+  -->
+  <rule id="100233" level="8">
+    <decoded_as>oracle-unified-audit</decoded_as>
+    <field name="audit_action">CREATE TABLE|ALTER TABLE|DROP TABLE|TRUNCATE TABLE|CREATE INDEX|DROP INDEX|CREATE VIEW|DROP VIEW|CREATE SEQUENCE|DROP SEQUENCE|CREATE PROCEDURE|DROP PROCEDURE|CREATE FUNCTION|DROP FUNCTION|CREATE TRIGGER|DROP TRIGGER</field>
+    <description>Oracle: DDL - $(action) em $(schema).$(object) por $(user)</description>
+    <group>ddl,pci_dss_10.2.5,iso27001_A.8.15,rgpd_art32,</group>
+  </rule>
+
+  <!--
+    Regra 100234: DROP irreversível.
+    Nível 13. DROP TABLE/VIEW/DATABASE — destruição de dados.
+  -->
+  <rule id="100234" level="13">
+    <decoded_as>oracle-unified-audit</decoded_as>
+    <field name="audit_action">DROP TABLE|DROP VIEW|DROP DATABASE LINK</field>
+    <description>Oracle: DROP crítico - $(action) em $(schema).$(object) por $(user)</description>
+    <group>ddl,pci_dss_10.2.5,rgpd_art33,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Gestão de Privilégios ────────────────────────────── -->
+
+  <!--
+    Regra 100235: GRANT/REVOKE de privilégios Oracle.
+    Nível 12. Alterações de privilégios são críticas para PCI-DSS 7.1.
+  -->
+  <rule id="100235" level="12">
+    <decoded_as>oracle-unified-audit</decoded_as>
+    <field name="audit_action">GRANT|REVOKE</field>
+    <description>Oracle: Alteração de privilégios - $(action) por $(user)</description>
+    <group>privilege_escalation,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!--
+    Regra 100236: Gestão de utilizadores Oracle (CREATE/ALTER/DROP USER).
+    Nível 12. Cobre PCI-DSS 8.2, SOX 404.
+  -->
+  <rule id="100236" level="12">
+    <decoded_as>oracle-unified-audit</decoded_as>
+    <field name="audit_action">CREATE USER|ALTER USER|DROP USER</field>
+    <description>Oracle: Gestão de utilizadores - $(action) por $(user)</description>
+    <group>privilege_escalation,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── FGA — Acesso a Dados PII ───────────────────────── -->
+
+  <!--
+    Regra 100240: Acesso a dados PII registado pelo FGA.
+    Nível 8. Qualquer SELECT em tabelas com política FGA.
+    Cobre RGPD Art. 32.º — rastreabilidade de acesso a dados pessoais.
+  -->
+  <rule id="100240" level="8">
+    <decoded_as>oracle-fga-audit</decoded_as>
+    <description>Oracle FGA: Acesso a dados PII - $(object) pela política $(policy) por $(user)</description>
+    <group>database,pci_dss_10.2.1,rgpd_art32,</group>
+  </rule>
+
+  <!--
+    Regra 100241: Volume anómalo de acessos PII.
+    Nível 10. 20 acessos FGA em 5 minutos pelo mesmo utilizador.
+    Pode indicar exfiltração ou acesso indevido em massa.
+  -->
+  <rule id="100241" level="10" frequency="20" timeframe="300">
+    <if_matched_sid>100240</if_matched_sid>
+    <description>Oracle FGA: Volume anómalo de acessos PII - $(user) em $(object)</description>
+    <group>data_exfiltration,pci_dss_10.2.5,rgpd_art33,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Contas Privilegiadas ─────────────────────────────── -->
+
+  <!--
+    Regra 100250: Ação pelo utilizador SYS.
+    Nível 10. SYS tem privilégios ilimitados — qualquer ação deve ser auditada.
+    Cobre PCI-DSS 10.2.2.
+  -->
+  <rule id="100250" level="10">
+    <decoded_as>oracle-unified-audit</decoded_as>
+    <field name="audit_user">SYS|SYSTEM</field>
+    <description>Oracle: Ação por conta privilegiada $(user) - $(action) em $(schema).$(object)</description>
+    <group>privilege_escalation,pci_dss_10.2.2,rgpd_art32,iso27001_A.8.15,</group>
+  </rule>
+
+  <!-- ─── Acesso Fora de Horário ──────────────────────────── -->
+
+  <!--
+    Regra 100251: LOGON Oracle fora do horário de trabalho.
+    Nível 10.
+  -->
+  <rule id="100251" level="10">
+    <if_sid>100230</if_sid>
+    <time>10pm - 6am</time>
+    <description>Oracle: Acesso fora de horário - $(user)@$(host)</description>
+    <group>authentication,pci_dss_10.2.1,nis2_art21,iso27001_A.8.15,</group>
+  </rule>
+
+</group>

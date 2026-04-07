@@ -1,0 +1,36 @@
+<!--
+  ============================================================
+  Wazuh Decoders — MySQL / MariaDB Audit
+  Ficheiro: /var/ossec/etc/decoders/mysql-audit-decoders.xml
+  ============================================================
+  Formato suportado:
+    - Percona Audit Log Plugin (JSON) — MySQL 8.0+
+    - MariaDB server_audit (CSV/syslog)
+  O MySQL syslog nativo é coberto pelos decoders built-in (0025-mysql_decoders.xml)
+  ============================================================
+-->
+
+<!-- ─── Percona Audit Log Plugin (JSON) ──────────────────── -->
+<!--
+  Quando o Wazuh Agent usa log_format=json, os campos JSON são
+  extraídos automaticamente. O decoder identifica o evento pelo prematch.
+-->
+<decoder name="mysql-audit-json">
+  <prematch>"audit_record":</prematch>
+</decoder>
+
+<!-- ─── MariaDB server_audit (formato CSV) ────────────────── -->
+<!--
+  Formato: timestamp,serverhost,username,host,connid,queryid,operation,database,object,retcode
+  Exemplo: 20240115 10:30:00,dbserver,app_user,192.168.1.100,42,0,CONNECT,mydb,,0
+-->
+<!-- O MariaDB server_audit precisa de decoder separado por não ser JSON.
+     Para ambientes MariaDB com server_audit, o ficheiro de log usa formato CSV.
+     O prematch identifica linhas que começam com data no formato YYYYMMDD. -->
+<!-- MariaDB: YYYYMMDD (sem hifens), ex: 20260407 14:24:02,glpi,...
+     PostgreSQL: YYYY-MM-DD (com hifens), não é capturado por este prematch -->
+<decoder name="mariadb-server-audit">
+  <prematch>,CONNECT,|,DISCONNECT,|,QUERY,|,FAILED_CONNECT,|,QUERY_DDL,|,TABLE,|,READ,|,WRITE,|,DROP,|,CREATE,|,ALTER,|,RENAME,</prematch>
+  <regex>^(\S+ \S+),(\S+),(\S*),(\S*),(\S+),(\S+),(\w+),</regex>
+  <order>timestamp,server_host,db_user,client_host,connection_id,query_id,operation</order>
+</decoder>

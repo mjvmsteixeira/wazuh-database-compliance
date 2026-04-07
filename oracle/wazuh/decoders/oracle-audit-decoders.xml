@@ -1,0 +1,36 @@
+<!--
+  ============================================================
+  Wazuh Decoders — Oracle Unified Audit Trail + FGA
+  Ficheiro: /var/ossec/etc/decoders/oracle-audit-decoders.xml
+
+  Formato de input (JSON gerado pelo oracle-audit-forwarder.sh):
+
+  Unified Audit Trail:
+  {"ts":"2024-01-15T10:30:00Z","source":"unified_audit","user":"APP_USER",
+   "action":"LOGON","schema":"N/A","object":"N/A","sql":"","client":"sqlplus",
+   "host":"appserver","auth_type":"PASSWORD","return_code":0,"session_id":12345}
+
+  FGA Audit Trail:
+  {"ts":"2024-01-15T10:31:00Z","source":"fga_audit","user":"APP_USER",
+   "schema":"APP_SCHEMA","object":"CLIENTES","policy":"AUDIT_CLIENTES_PII",
+   "sql":"SELECT NIF, IBAN FROM CLIENTES WHERE ID = :1","return_code":3}
+  ============================================================
+-->
+
+<!-- ─── Decoder base: Unified Audit Trail ─────────────────── -->
+<!--
+  Deteta linhas com "source":"unified_audit" e delega ao json_decoder.
+  O json_decoder popula automaticamente todos os campos do JSON.
+-->
+<!--
+  Quando o Wazuh Agent usa <log_format>json</log_format>, os campos JSON
+  são extraídos automaticamente. O decoder apenas identifica o evento.
+-->
+<decoder name="oracle-unified-audit">
+  <prematch>"source":"unified_audit"</prematch>
+</decoder>
+
+<!-- ─── Decoder base: FGA Audit Trail ────────────────────── -->
+<decoder name="oracle-fga-audit">
+  <prematch>"source":"fga_audit"</prematch>
+</decoder>

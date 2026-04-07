@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentos e scripts de geração
+*.docx
+*.pdf
+generate_*.py
+docs/
+
+# Credenciais e segredos
+*.pem
+*.key
+*.p12
+audit_pwd
+thehive-token
+
+# Temporários
+*.tmp
+*.bak
+*.swp
+*~

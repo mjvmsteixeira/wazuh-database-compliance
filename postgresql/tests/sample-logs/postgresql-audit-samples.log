@@ -1,0 +1,16 @@
+Jan 15 10:30:00 dbserver postgresql[1234]: [1-1] LOG:  connection received: host=192.168.1.100 port=54321
+Jan 15 10:30:01 dbserver postgresql[1234]: [2-1] LOG:  connection authorized: user=app_user database=prod_db SSL enabled (server=TLSv1.3, cipher=TLS_AES_256_GCM_SHA384)
+Jan 15 10:30:02 dbserver postgresql[1234]: [3-1] LOG:  AUDIT: SESSION,1,1,DDL,CREATE TABLE,TABLE,public.clientes,CREATE TABLE clientes (id SERIAL PRIMARY KEY, nome TEXT, nif VARCHAR(9)),<not logged>
+Jan 15 10:30:03 dbserver postgresql[1234]: [4-1] LOG:  AUDIT: SESSION,2,1,DDL,ALTER TABLE,TABLE,public.clientes,ALTER TABLE clientes ADD COLUMN email TEXT,<not logged>
+Jan 15 10:30:04 dbserver postgresql[1235]: [1-1] FATAL:  password authentication failed for user "baduser"
+Jan 15 10:30:05 dbserver postgresql[1236]: [1-1] FATAL:  password authentication failed for user "baduser"
+Jan 15 10:30:06 dbserver postgresql[1237]: [1-1] FATAL:  password authentication failed for user "baduser"
+Jan 15 10:30:07 dbserver postgresql[1238]: [1-1] FATAL:  password authentication failed for user "baduser"
+Jan 15 10:30:08 dbserver postgresql[1239]: [1-1] FATAL:  password authentication failed for user "baduser"
+Jan 15 10:30:09 dbserver postgresql[1240]: [1-1] LOG:  AUDIT: SESSION,3,1,ROLE,GRANT,,,GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user,<not logged>
+Jan 15 10:30:10 dbserver postgresql[1234]: [5-1] LOG:  AUDIT: SESSION,4,1,WRITE,INSERT,TABLE,public.clientes,INSERT INTO clientes (nome, nif) VALUES ($1, $2),"João Silva","123456789"
+Jan 15 10:30:11 dbserver postgresql[1234]: [6-1] LOG:  AUDIT: SESSION,5,1,READ,SELECT,TABLE,public.dados_pessoais,SELECT * FROM dados_pessoais WHERE nif = $1,"123456789"
+Jan 15 10:30:12 dbserver postgresql[1234]: [7-1] ERROR:  permission denied for table documentos_secretos
+Jan 15 10:30:13 dbserver postgresql[1241]: [1-1] FATAL:  no pg_hba.conf entry for host "203.0.113.45", user "scanner", database "postgres", SSL off
+Jan 15 10:30:14 dbserver postgresql[1234]: [8-1] LOG:  AUDIT: SESSION,6,1,DDL,DROP TABLE,TABLE,public.temp_exports,DROP TABLE temp_exports,<not logged>
+Jan 15 10:30:15 dbserver postgresql[1234]: [9-1] LOG:  disconnection: session time: 0:00:15.123 user=app_user database=prod_db host=192.168.1.100 port=54321

@@ -1,0 +1,33 @@
+<!--
+  ============================================================
+  Wazuh Decoders — Microsoft SQL Server Audit
+  Ficheiro: /var/ossec/etc/decoders/mssql-audit-decoders.xml
+
+  Formato de input (JSON gerado pelo mssql-audit-forwarder.ps1):
+
+  {"ts":"2024-01-15T10:30:00","source":"mssql_audit","action_id":"LGFL",
+   "succeeded":false,"server_principal_name":"baduser",
+   "database_name":"master","object_name":"",
+   "statement":"","client_ip":"203.0.113.45",
+   "application_name":"Microsoft SQL Server Management Studio"}
+
+  Campos action_id comuns:
+    LGFL = Login Failed           LGIS = Login Succeeded
+    GRTO = Grant                  ROCO = Revoke
+    DENY = Deny                   AUSC = Audit Schema Object Access
+    SL   = Select                 IN   = Insert
+    UP   = Update                 DL   = Delete
+    EX   = Execute                ALCN = Alter Connection
+    ALSS = Alter Server State
+  ============================================================
+-->
+
+<!-- ─── Decoder: SQL Server Audit (JSON do pipeline PowerShell) ─── -->
+<!--
+  Quando o Wazuh Agent usa <log_format>json</log_format>, os campos JSON
+  são extraídos automaticamente. O decoder apenas identifica o evento
+  pelo prematch e define o nome para as regras usarem decoded_as.
+-->
+<decoder name="mssql-wazuh-audit">
+  <prematch>"source":"mssql_audit"</prematch>
+</decoder>

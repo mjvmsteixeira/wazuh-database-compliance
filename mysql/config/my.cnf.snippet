@@ -1,0 +1,80 @@
+# ============================================================
+# Percona Audit Log Plugin — Configuração para Wazuh DAM
+# Ficheiro: /etc/mysql/mysql.conf.d/mysqld.cnf (Ubuntu/Debian)
+#           /etc/my.cnf                         (RHEL/CentOS)
+# ============================================================
+#
+# INSTRUÇÕES:
+#   1. Copiar este bloco para a secção [mysqld] do my.cnf
+#   2. Ajustar os parâmetros assinalados com [AJUSTAR]
+#   3. Reiniciar: systemctl restart mysql
+#   4. Verificar: mysql -u root -p -e "SHOW PLUGINS;" | grep audit
+#
+[mysqld]
+
+# ─── Carregamento do Plugin ────────────────────────────────
+# Carrega o plugin ao arranque do mysqld.
+# Sem esta linha, o plugin desaparece após restart mesmo se instalado via SQL.
+plugin-load-add = audit_log.so
+
+# ─── Output ────────────────────────────────────────────────
+# Caminho absoluto para o ficheiro de auditoria.
+# O utilizador mysql deve ter permissão de escrita no diretório.
+# [AJUSTAR] conforme o ambiente
+audit_log_file = /var/log/mysql/audit.log
+
+# Formato JSON: obrigatório para o json_decoder do Wazuh.
+# Alternativas (não recomendadas com Wazuh):
+#   OLD  = CSV legacy
+#   NEW  = XML
+#   CSV  = CSV atual
+audit_log_format = JSON
+
+# ─── Política de Auditoria ─────────────────────────────────
+# Define quais eventos são registados.
+#
+#   ALL    = todos (Connect + Disconnect + Queries + DDL)
+#            Usar apenas em ambientes de baixo volume ou dev/QA.
+#            Pode gerar 10-50 GB/dia em produção.
+#
+#   LOGINS = apenas Connect/Disconnect/Failed login
+#            Cobre PCI-DSS 10.2.1 (autenticação individual) com volume mínimo.
+#            RECOMENDADO para início de implementação.
+#
+#   QUERIES = apenas queries SQL
+#            Alto volume. Usar com audit_log_include_commands para filtrar.
+#
+#   NONE   = auditoria desativada
+#
+# [AJUSTAR] — produção: LOGINS; depois expandir para QUERIES com filtros
+audit_log_policy = LOGINS
+
+# ─── Filtro por Tipo de Comando ────────────────────────────
+# Quando audit_log_policy = QUERIES ou ALL, filtrar apenas DDL e gestão
+# de utilizadores para cumprir PCI-DSS 10.2.5 sem sobrecarregar o sistema.
+#
+# Esta lista cobre:
+#   - Alterações de schema (DDL) — PCI-DSS 10.2.5, ISO A.8.15
+#   - Gestão de privilégios (DCL) — PCI-DSS 10.2.5, SOX 404
+#   - Gestão de utilizadores — RGPD Art. 32.º
+audit_log_include_commands = 'create_table,alter_table,drop_table,truncate,\
+  create_db,alter_db,drop_db,\
+  create_index,drop_index,\
+  grant,revoke,\
+  create_user,drop_user,alter_user,rename_user,set_password'
+
+# ─── Rotação e Retenção ────────────────────────────────────
+# Rodar automaticamente quando o ficheiro atingir este tamanho.
+# [AJUSTAR] conforme capacidade de disco
+audit_log_rotate_on_size = 100M
+
+# Número de ficheiros rotados a manter (além do atual).
+# 10 ficheiros * 100M = ~1 GB máximo em disco por este mecanismo.
+# A retenção de longo prazo é gerida pelo OpenSearch ILM + S3.
+audit_log_rotations = 10
+
+# ─── Estratégia de Escrita ─────────────────────────────────
+# PERFORMANCE      = assíncrono, mínimo impacto, risco de perda em crash
+# SEMISYNCHRONOUS  = aguarda flush, impacto ~2-5% latência (recomendado PCI-DSS)
+# SYNCHRONOUS      = aguarda fsync, impacto ~10-15% (apenas ambientes críticos)
+audit_log_strategy = SEMISYNCHRONOUS

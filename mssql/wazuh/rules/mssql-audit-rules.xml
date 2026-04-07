@@ -1,0 +1,145 @@
+<!--
+  ============================================================
+  Wazuh Rules — Microsoft SQL Server Audit
+  Ficheiro: /var/ossec/etc/rules/mssql-audit-rules.xml
+
+  IDs reservados: 100270–100299 (MSSQL)
+  Oracle usa 100230–100259 | PostgreSQL usa 100210–100229 | MySQL usa 100200–100209 + 100260–100269
+
+  action_id reference:
+    LGFL = Login Failed           LGIS = Login Succeeded
+    GRTO = Grant                  ROCO = Revoke
+    DENY = Deny                   AUSC = Audit Schema Object
+    SL   = Select                 IN   = Insert
+    UP   = Update                 DL   = Delete
+    EX   = Execute                CR   = Create
+    AL   = Alter                  DR   = Drop
+  ============================================================
+-->
+
+<group name="database,mssql,">
+
+  <!-- ─── Login bem-sucedido ─────────────────────────────── -->
+
+  <rule id="100270" level="3">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">LGIS</field>
+    <description>MSSQL: Login bem-sucedido - $(server_principal_name) de $(client_ip) [$(application_name)]</description>
+    <group>authentication,pci_dss_10.2.1,rgpd_art32,iso27001_A.8.15,</group>
+  </rule>
+
+  <!-- ─── Login falhado ──────────────────────────────────── -->
+
+  <rule id="100271" level="10">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">LGFL</field>
+    <description>MSSQL: Login falhado - $(server_principal_name) de $(client_ip)</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- Brute-force: 5 falhas em 2 minutos -->
+  <rule id="100272" level="12" frequency="5" timeframe="120">
+    <if_matched_sid>100271</if_matched_sid>
+    <description>MSSQL: Brute-force detetado - $(server_principal_name) de $(client_ip)</description>
+    <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art33,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Privilege Escalation ───────────────────────────── -->
+
+  <!-- GRANT / REVOKE / DENY -->
+  <rule id="100273" level="12">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">GRTO|ROCO|DENY|AUSC</field>
+    <description>MSSQL: Modificação de permissões - $(action_id) por $(server_principal_name) na BD $(database_name)</description>
+    <group>privilege_escalation,pci_dss_7.1,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- Alteração de roles de servidor -->
+  <rule id="100274" level="13">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">ADSP|DRSP|AADM|RADM</field>
+    <description>MSSQL: Alteração de Server/DB Role Member - $(action_id) por $(server_principal_name)</description>
+    <group>privilege_escalation,pci_dss_7.1,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── DDL — Alterações de Schema ─────────────────────── -->
+
+  <rule id="100275" level="8">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">CR|AL</field>
+    <description>MSSQL: DDL CREATE/ALTER - $(object_name) por $(server_principal_name) na BD $(database_name)</description>
+    <group>ddl,pci_dss_10.2.5,iso27001_A.8.15,rgpd_art32,</group>
+  </rule>
+
+  <!-- DROP — irreversível, nível mais alto -->
+  <rule id="100276" level="12">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">DR</field>
+    <description>MSSQL: DROP - $(object_name) por $(server_principal_name) na BD $(database_name)</description>
+    <group>ddl,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Suspeita de Exfiltração ──────────────────────────── -->
+
+  <!-- SELECT com INTO, OUTFILE, OPENROWSET, BULK INSERT -->
+  <rule id="100277" level="10">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">SL</field>
+    <field name="statement">SELECT.+INTO |OPENROWSET|BULK INSERT</field>
+    <description>MSSQL: Query potencialmente exfiltradora por $(server_principal_name) na BD $(database_name)</description>
+    <group>data_exfiltration,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- Múltiplas queries suspeitas -->
+  <rule id="100278" level="13" frequency="3" timeframe="300">
+    <if_matched_sid>100277</if_matched_sid>
+    <description>MSSQL: Padrão de exfiltração repetido - $(server_principal_name)</description>
+    <group>data_exfiltration,pci_dss_10.2.5,rgpd_art33,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Alterações de Password ─────────────────────────── -->
+
+  <rule id="100279" level="10">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">PWCS|PWCG</field>
+    <description>MSSQL: Alteração de password por $(server_principal_name)</description>
+    <group>authentication,pci_dss_10.2.5,rgpd_art32,</group>
+  </rule>
+
+  <!-- ─── Gestão de Utilizadores ─────────────────────────── -->
+
+  <rule id="100280" level="12">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">CRLG|ALLG|DRLG</field>
+    <description>MSSQL: Gestão de login - $(action_id) por $(server_principal_name)</description>
+    <group>privilege_escalation,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
+  </rule>
+
+  <!-- ─── Estado do Servidor ─────────────────────────────── -->
+
+  <rule id="100281" level="10">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">ALSS</field>
+    <description>MSSQL: Alteração de estado do servidor por $(server_principal_name)</description>
+    <group>service_availability,pci_dss_10.2.5,iso27001_A.8.15,</group>
+  </rule>
+
+  <!-- ─── Backup/Restore ──────────────────────────────────── -->
+
+  <rule id="100282" level="8">
+    <decoded_as>mssql-wazuh-audit</decoded_as>
+    <field name="action_id">BKDB|RSDB</field>
+    <description>MSSQL: Backup/Restore - $(action_id) da BD $(database_name) por $(server_principal_name)</description>
+    <group>database,iso27001_A.8.15,</group>
+  </rule>
+
+  <!-- ─── Acesso Fora de Horário ──────────────────────────── -->
+
+  <rule id="100283" level="10">
+    <if_sid>100270</if_sid>
+    <time>10pm - 6am</time>
+    <description>MSSQL: Login fora de horário - $(server_principal_name) de $(client_ip)</description>
+    <group>authentication,pci_dss_10.2.1,nis2_art21,iso27001_A.8.15,</group>
+  </rule>
+
+</group>
