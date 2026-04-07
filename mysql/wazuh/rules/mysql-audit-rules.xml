@@ -40,7 +40,7 @@
     Disparado por: Connect ou Quit com status 0 (sucesso).
   -->
   <rule id="100201" level="3">
-    <decoded_as>mysql-audit-json</decoded_as>
+    <decoded_as>json</decoded_as>
     <field name="audit_record.name">Connect|Quit</field>
     <field name="audit_record.status">0</field>
     <description>MySQL: Sessão $(audit_record.name) - $(audit_record.user)@$(audit_record.host)</description>
@@ -56,9 +56,9 @@
     Nota: status usa regex \.\+ para qualquer valor não-zero.
   -->
   <rule id="100202" level="10">
-    <decoded_as>mysql-audit-json</decoded_as>
+    <decoded_as>json</decoded_as>
     <field name="audit_record.name">Connect</field>
-    <field name="audit_record.status">\.+</field>
+    <field name="audit_record.status" negate="yes">^0$</field>
     <description>MySQL: Falha de autenticação - $(audit_record.user) de $(audit_record.host) [código $(audit_record.status)]</description>
     <group>authentication,authentication_failed,pci_dss_10.2.4,rgpd_art32,nis2_art21,</group>
   </rule>
@@ -83,7 +83,7 @@
     Cobre PCI-DSS 10.2.5 e ISO A.8.15.
   -->
   <rule id="100204" level="8">
-    <decoded_as>mysql-audit-json</decoded_as>
+    <decoded_as>json</decoded_as>
     <field name="audit_record.command_class">create_table|alter_table|drop_table|truncate|create_db|alter_db|drop_db|create_index|drop_index</field>
     <description>MySQL: DDL executado - $(audit_record.command_class) por $(audit_record.user) na BD $(audit_record.db)</description>
     <group>ddl,pci_dss_10.2.5,iso27001_A.8.15,rgpd_art32,</group>
@@ -97,7 +97,7 @@
     críticas para conformidade PCI-DSS 7.1 e SOX 404.
   -->
   <rule id="100205" level="12">
-    <decoded_as>mysql-audit-json</decoded_as>
+    <decoded_as>json</decoded_as>
     <field name="audit_record.command_class">grant|revoke|create_user|drop_user|alter_user|rename_user|set_password</field>
     <description>MySQL: Alteração de privilégios/utilizador - $(audit_record.command_class) por $(audit_record.user)</description>
     <group>privilege_escalation,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>
@@ -126,7 +126,7 @@
     padrões comuns de exfiltração de dados via MySQL.
   -->
   <rule id="100207" level="10">
-    <decoded_as>mysql-audit-json</decoded_as>
+    <decoded_as>json</decoded_as>
     <field name="audit_record.sqltext">INTO OUTFILE|INTO DUMPFILE</field>
     <description>MySQL: Query suspeita de exfiltração - $(audit_record.user) na BD $(audit_record.db)</description>
     <group>data_exfiltration,pci_dss_10.2.5,rgpd_art32,nis2_art21,</group>

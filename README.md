@@ -6,7 +6,7 @@
 
 **Compliance:** GDPR · NIS2 · PCI-DSS v4.0 · ISO 27001:2022 · SOX
 
-**Tested on:** Wazuh 4.14.4 (Docker multi-node) · MariaDB 10.11 · PostgreSQL 15/16 · SQL Server 2022
+**Tested on:** Wazuh 4.14.4 (Docker multi-node) · MariaDB 10.11 · PostgreSQL 15/16 · SQL Server (decoders only, pending activation)
 
 ---
 
@@ -35,17 +35,17 @@ flowchart TD
     subgraph Manager["Wazuh Manager"]
         DEC["Decoders\n(per DBMS)"]
         RULES["Correlation Rules\n+ Rate Limiting"]
-        AR["Active Response\n(firewall-drop, revoke-session)"]
+        AR["Active Response\n(firewall-drop)"]
     end
 
     subgraph Storage["Storage"]
-        OS["OpenSearch\n(ILM + S3 Object Lock)"]
+        OS["OpenSearch\n(ILM retention)"]
     end
 
     subgraph Integ["Integrations"]
-        HIVE["TheHive / SOAR"]
-        SLACK["Slack / JIRA"]
-        CERT["CNCS / CERT.PT"]
+        HIVE["TheHive / SOAR\n(roadmap)"]
+        SLACK["Slack / JIRA\n(roadmap)"]
+        CERT["CNCS / CERT.PT\n(roadmap)"]
     end
 
     MY --> AG1
@@ -160,13 +160,13 @@ wazuh-db-audit/
 | Regulation | Requirement | Implemented Control |
 |------------|-------------|---------------------|
 | GDPR Art. 32 | Technical security measures | Logging + anomaly alerts |
-| GDPR Art. 33 | Breach notification within 72h | Active Response + TheHive/SOAR |
+| GDPR Art. 33 | Breach notification within 72h | Active Response (TheHive roadmap) |
 | NIS2 Art. 21 §2 a) | Risk analysis | Correlation rules + dashboards |
 | NIS2 Art. 23 | Incident notification | Automated alerts → CNCS/CERT.PT |
 | PCI-DSS 10.2.1 | Individual access logging | Authentication decoders per DBMS |
 | PCI-DSS 10.2.5 | Privileged action logging | DDL/DCL rules + privilege escalation |
-| PCI-DSS 10.3.4 | Tamper protection | FIM (syscheck) + S3 Object Lock |
-| PCI-DSS 10.7 | Minimum 12-month retention | OpenSearch ILM: hot→warm→cold→delete |
+| PCI-DSS 10.3.4 | Tamper protection | FIM (syscheck) |
+| PCI-DSS 10.7 | Minimum 12-month retention | OpenSearch ILM: hot→warm→cold→delete (S3 snapshots roadmap) |
 | ISO 27001:2022 A.8.15 | Logging and monitoring | Full configuration + UEBA (roadmap) |
 | SOX Sec. 404 | IT General Controls | Privilege escalation + 7-year retention |
 
